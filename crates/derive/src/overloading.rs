@@ -557,8 +557,7 @@ impl KotoArg {
                     // Unknown types can be assumed to implement `KotoObject`
                     _ => arg
                         .value(Object(ident_string))
-                        .match_condition(quote!(#name.is_a::<#ident>()))
-                        .setup_expr(quote!(let #name = #name.cast::<#ident>().unwrap();)),
+                        .match_condition(quote!(let Ok(#name) = #name.cast::<#ident>())),
                 }
                 .build())
             }

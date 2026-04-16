@@ -272,11 +272,9 @@ impl Color {
     #[koto_method]
     pub fn mix(ctx: MethodContext<Self>) -> Result<Self> {
         let (a, b, amount) = match ctx.args {
-            [KValue::Object(b)] if b.is_a::<Color>() => {
-                (*ctx.instance()?, *b.cast::<Color>()?, 0.5)
-            }
-            [KValue::Object(b), KValue::Number(x)] if b.is_a::<Color>() => {
-                (*ctx.instance()?, *b.cast::<Color>()?, f32::from(x))
+            [KValue::Object(b)] if let Ok(b) = b.cast::<Color>() => (*ctx.instance()?, *b, 0.5),
+            [KValue::Object(b), KValue::Number(x)] if let Ok(b) = b.cast::<Color>() => {
+                (*ctx.instance()?, *b, f32::from(x))
             }
             unexpected => return unexpected_args("|Color|, or |Color, Number|", unexpected),
         };
@@ -347,20 +345,14 @@ impl KotoObject for Color {
 
     fn equal(&self, other: &KValue) -> Result<bool> {
         match other {
-            KValue::Object(o) if o.is_a::<Self>() => {
-                let other = o.cast::<Self>().unwrap();
-                Ok(*self == *other)
-            }
+            KValue::Object(o) if let Ok(other) = o.cast::<Self>() => Ok(*self == *other),
             unexpected => unexpected_type(Self::type_static(), unexpected),
         }
     }
 
     fn not_equal(&self, other: &KValue) -> Result<bool> {
         match other {
-            KValue::Object(o) if o.is_a::<Self>() => {
-                let other = o.cast::<Self>().unwrap();
-                Ok(*self != *other)
-            }
+            KValue::Object(o) if let Ok(other) = o.cast::<Self>() => Ok(*self != *other),
             unexpected => unexpected_type(Self::type_static(), unexpected),
         }
     }
