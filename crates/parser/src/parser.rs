@@ -3451,10 +3451,7 @@ impl<'source> Parser<'source> {
         let mut items = Vec::new();
         let mut context = *context;
 
-        loop {
-            let Some(item) = self.parse_id_or_string(&context)? else {
-                break;
-            };
+        while let Some(item) = self.parse_id_or_string(&context)? {
             let name = match self.peek_token_with_context(&context) {
                 Some(peeked) if peeked.token == Token::As => {
                     self.consume_token_with_context(&context);

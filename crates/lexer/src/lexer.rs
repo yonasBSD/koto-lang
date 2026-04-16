@@ -302,21 +302,17 @@ impl<'a> TokenLexer<'a> {
                 char_bytes += c.len_utf8();
                 position.column += c.width().unwrap_or(0) as u32;
                 match c {
-                    '#' => {
-                        if chars.peek() == Some(&'-') {
-                            chars.next();
-                            char_bytes += 1;
-                            position.column += 1;
-                        }
+                    '#' if chars.peek() == Some(&'-') => {
+                        chars.next();
+                        char_bytes += 1;
+                        position.column += 1;
                     }
-                    '-' => {
-                        if chars.peek() == Some(&'#') {
-                            chars.next();
-                            char_bytes += 1;
-                            position.column += 1;
-                            end_found = true;
-                            break;
-                        }
+                    '-' if chars.peek() == Some(&'#') => {
+                        chars.next();
+                        char_bytes += 1;
+                        position.column += 1;
+                        end_found = true;
+                        break;
                     }
                     '\r' => {
                         if chars.next() != Some('\n') {
