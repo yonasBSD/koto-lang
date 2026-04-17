@@ -368,9 +368,7 @@ pub fn make_module() -> KMap {
 
                 let sorted = sort_by_key(ctx.vm, l.data().as_ref(), f.clone())?;
 
-                for (target_value, (_key, source_value)) in
-                    l.data_mut().iter_mut().zip(sorted.into_iter())
-                {
+                for (target_value, (_key, source_value)) in l.data_mut().iter_mut().zip(sorted) {
                     *target_value = source_value;
                 }
 

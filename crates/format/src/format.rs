@@ -1312,10 +1312,8 @@ impl<'source, 'trivia> GroupBuilder<'source, 'trivia> {
                 }
 
                 match position_info {
-                    TriviaPosition::LineStart => {
-                        if item.span.end.line < position.line {
-                            self.group_break(GroupBreak::LineStart);
-                        }
+                    TriviaPosition::LineStart if item.span.end.line < position.line => {
+                        self.group_break(GroupBreak::LineStart);
                     }
                     _ if self.items.last().is_some_and(|item| !item.is_break()) => {
                         self.group_break(GroupBreak::SpaceOrIndentIfNecessary);
@@ -1512,10 +1510,8 @@ impl<'source> FormatItem<'source> {
                                 output.push('\n');
                                 group_break = GroupBreak::None;
                             }
-                            GroupBreak::IndentedBreak => {
-                                if indented {
-                                    group_break = GroupBreak::MaybeIndent;
-                                }
+                            GroupBreak::IndentedBreak if indented => {
+                                group_break = GroupBreak::MaybeIndent;
                             }
                             _ => {}
                         }

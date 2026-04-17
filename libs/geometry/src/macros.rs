@@ -64,8 +64,7 @@ macro_rules! geometry_arithmetic_op {
     ($self:ident, $other:expr, $op:tt) => {
         {
             match $other {
-                KValue::Object(other) if other.is_a::<Self>() => {
-                    let other = other.cast::<Self>().unwrap();
+                KValue::Object(other) if let Ok(other) = other.cast::<Self>() => {
                     Ok((*$self $op *other).into())
                 }
                 KValue::Number(n) => {
@@ -100,8 +99,7 @@ macro_rules! geometry_compound_assign_op {
     ($self:ident, $other:expr, $op:tt) => {
         {
             match $other {
-                KValue::Object(other) if other.is_a::<Self>() => {
-                    let other = other.cast::<Self>().unwrap();
+                KValue::Object(other) if let Ok(other) = other.cast::<Self>() => {
                     *$self $op *other;
                     Ok(())
                 }
@@ -122,8 +120,7 @@ macro_rules! geometry_comparison_op {
     ($self:ident, $other:expr, $op:tt) => {
         {
             match $other {
-                KValue::Object(other) if other.is_a::<Self>() => {
-                    let other = other.cast::<Self>().unwrap();
+                KValue::Object(other) if let Ok(other) = other.cast::<Self>() => {
                     Ok(*$self $op *other)
                 }
                 unexpected => {

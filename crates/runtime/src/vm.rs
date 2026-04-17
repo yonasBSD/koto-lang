@@ -4361,7 +4361,7 @@ mod macros {
                     (Map(m), _) if m.contains_meta_key(&$op.into()) => {
                         macros::call_metamap_binary_op!($self, $op, m, lhs_value, rhs_value);
                     }
-                    (Object(o), Object(o2)) if o2.is_same_instance(o2) => {
+                    (Object(o), Object(o2)) if o.is_same_instance(o2) => {
                         let o2 = Object(o2.try_borrow()?.copy());
                         o.try_borrow_mut()?.$trait_fn(&o2)
                     }

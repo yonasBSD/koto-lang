@@ -1064,116 +1064,127 @@ fn add_access_getter(ctx: &Context) -> Result<()> {
         // Non-generic types can cache the entries map in a `thread_local`/`LazyLock`
         let ty = ctx.ty();
 
-        if cfg!(feature = "rc") {
-            quote! {
-                #[automatically_derived]
-                fn #name(key: &str) -> Option<#runtime::__private::MethodOrField<#ty>> {
-                    use ::std::{collections::HashMap, hash::BuildHasherDefault};
-                    use #runtime::{KotoHasher, __private::MethodOrField};
+        cfg_select! {
+            feature = "rc" => {
+                quote! {
+                    #[automatically_derived]
+                    fn #name(key: &str) -> Option<#runtime::__private::MethodOrField<#ty>> {
+                        use ::std::{collections::HashMap, hash::BuildHasherDefault};
+                        use #runtime::{KotoHasher, __private::MethodOrField};
 
-                    thread_local! {
-                        static ENTRIES: HashMap<
+                        thread_local! {
+                            static ENTRIES: HashMap<
+                                &'static str,
+                                MethodOrField<#ty>,
+                                BuildHasherDefault<KotoHasher>,
+                            > = #ty_turbofish::#create_access_map();
+                        }
+
+                        ENTRIES.with(|entries| entries.get(key).cloned())
+                    }
+                }
+            }
+            feature = "arc" => {
+                quote! {
+                    #[automatically_derived]
+                    fn #name(key: &str) -> Option<#runtime::__private::MethodOrField<#ty>> {
+                        use ::std::{collections::HashMap, hash::BuildHasherDefault, sync::LazyLock};
+                        use #runtime::{lazy, __private::MethodOrField, KotoHasher};
+
+                        static ENTRIES: LazyLock<HashMap<
                             &'static str,
                             MethodOrField<#ty>,
                             BuildHasherDefault<KotoHasher>,
-                        > = #ty_turbofish::#create_access_map();
+                        >> = LazyLock::new(#ty_turbofish::#create_access_map);
+
+                        LazyLock::force(&ENTRIES).get(key).cloned()
                     }
-
-                    ENTRIES.with(|entries| entries.get(key).cloned())
                 }
             }
-        } else if cfg!(feature = "arc") {
-            quote! {
-                #[automatically_derived]
-                fn #name(key: &str) -> Option<#runtime::__private::MethodOrField<#ty>> {
-                    use ::std::{collections::HashMap, sync::LazyLock, hash::BuildHasherDefault};
-                    use #runtime::{lazy, __private::MethodOrField, KotoHasher};
-
-                    static ENTRIES: LazyLock<HashMap<
-                        &'static str,
-                        MethodOrField<#ty>,
-                        BuildHasherDefault<KotoHasher>,
-                    >> = LazyLock::new(#ty_turbofish::#create_access_map);
-
-                    LazyLock::force(&ENTRIES).get(key).cloned()
-                }
+            _ => {
+                return missing_memory_feature()
             }
-        } else {
-            no_feature_set!()
         }
     } else {
         // Rust doesn't support generic statics, so entries are cached in a hashmap with the
         // concrete instantiation type used as the key.
 
-        if cfg!(feature = "rc") {
-            quote! {
-                #[automatically_derived]
-                fn #name(key: &str)
-                    -> Option<#runtime::__private::MethodOrField<dyn ::std::any::Any>>
-                {
-                    use ::std::{
-                        any::TypeId, cell::RefCell, collections::HashMap, hash::BuildHasherDefault,
-                    };
-                    use #runtime::{KMap, KotoHasher, __private::MethodOrField};
+        cfg_select! {
+            feature = "rc" => {
+                quote! {
+                    #[automatically_derived]
+                    fn #name(key: &str)
+                        -> Option<#runtime::__private::MethodOrField<dyn ::std::any::Any>>
+                    {
+                        use ::std::{
+                            any::TypeId, cell::RefCell, collections::HashMap,
+                            hash::BuildHasherDefault,
+                        };
+                        use #runtime::{KMap, KotoHasher, __private::MethodOrField};
 
-                    type PerTypeEntriesMap = HashMap<
-                        TypeId,
-                        HashMap<
-                            &'static str,
-                            MethodOrField<dyn ::std::any::Any>,
+                        type PerTypeEntriesMap = HashMap<
+                            TypeId,
+                            HashMap<
+                                &'static str,
+                                MethodOrField<dyn ::std::any::Any>,
+                                BuildHasherDefault<KotoHasher>,
+                            >,
                             BuildHasherDefault<KotoHasher>,
-                        >,
-                        BuildHasherDefault<KotoHasher>,
-                    >;
+                        >;
 
-                    thread_local! {
-                        static PER_TYPE_ENTRIES: RefCell<PerTypeEntriesMap> = RefCell::default();
+                        thread_local! {
+                            static PER_TYPE_ENTRIES: RefCell<PerTypeEntriesMap>
+                                = RefCell::default();
+                        }
+
+                        PER_TYPE_ENTRIES
+                            .with_borrow_mut(|per_type_entries| {
+                                per_type_entries
+                                    .entry(TypeId::of::<Self>())
+                                    .or_insert_with(#ty_turbofish::#create_access_map)
+                                    .get(key).cloned()
+                            })
                     }
-
-                    PER_TYPE_ENTRIES
-                        .with_borrow_mut(|per_type_entries| {
-                            per_type_entries
-                                .entry(TypeId::of::<Self>())
-                                .or_insert_with(#ty_turbofish::#create_access_map)
-                                .get(key).cloned()
-                        })
                 }
             }
-        } else if cfg!(feature = "arc") {
-            quote! {
-                #[automatically_derived]
-                fn #name(key: &str)
-                    -> Option<#runtime::__private::MethodOrField<dyn ::std::any::Any>>
-                {
-                    use ::std::{
-                        any::TypeId, collections::HashMap, hash::BuildHasherDefault, sync::LazyLock,
-                    };
-                    use #runtime::{
-                        KCell, KMap, KotoHasher, KNativeFunction, __private::MethodOrField,
-                    };
+            feature = "arc" => {
+                quote! {
+                    #[automatically_derived]
+                    fn #name(key: &str)
+                        -> Option<#runtime::__private::MethodOrField<dyn ::std::any::Any>>
+                    {
+                        use ::std::{
+                            any::TypeId, collections::HashMap, hash::BuildHasherDefault,
+                            sync::LazyLock,
+                        };
+                        use #runtime::{
+                            KCell, KMap, KotoHasher, KNativeFunction, __private::MethodOrField,
+                        };
 
-                    type PerTypeEntriesMap = HashMap<
-                        TypeId,
-                        HashMap<
-                            &'static str,
-                            MethodOrField<dyn ::std::any::Any>,
+                        type PerTypeEntriesMap = HashMap<
+                            TypeId,
+                            HashMap<
+                                &'static str,
+                                MethodOrField<dyn ::std::any::Any>,
+                                BuildHasherDefault<KotoHasher>
+                            >,
                             BuildHasherDefault<KotoHasher>
-                        >,
-                        BuildHasherDefault<KotoHasher>
-                    >;
+                        >;
 
-                    static PER_TYPE_ENTRIES: LazyLock<KCell<PerTypeEntriesMap>> =
-                        LazyLock::new(KCell::default);
+                        static PER_TYPE_ENTRIES: LazyLock<KCell<PerTypeEntriesMap>> =
+                            LazyLock::new(KCell::default);
 
-                    PER_TYPE_ENTRIES
-                        .borrow_mut()
-                        .entry(TypeId::of::<Self>())
-                        .or_insert_with(#ty_turbofish::#create_access_map)
-                        .get(key).cloned()
+                        PER_TYPE_ENTRIES
+                            .borrow_mut()
+                            .entry(TypeId::of::<Self>())
+                            .or_insert_with(#ty_turbofish::#create_access_map)
+                            .get(key).cloned()
+                    }
                 }
             }
-        } else {
-            no_feature_set!()
+            _ => {
+                return missing_memory_feature()
+            }
         }
     };
 
@@ -1196,114 +1207,124 @@ fn add_access_assign_getter(ctx: &Context) -> Result<()> {
     let getter_fn = if ctx.impl_item.generics.params.is_empty() {
         // Non-generic types can cache the entries map in a `thread_local`/`LazyLock`
 
-        if cfg!(feature = "rc") {
-            quote! {
-                #[automatically_derived]
-                fn #name(key: &str) -> Option<fn(&mut #ty, &KValue) -> #runtime::Result<()>> {
-                    use ::std::{collections::HashMap, hash::BuildHasherDefault};
-                    use #runtime::{Result, KotoHasher};
+        cfg_select! {
+            feature = "rc" => {
+                quote! {
+                    #[automatically_derived]
+                    fn #name(key: &str) -> Option<fn(&mut #ty, &KValue) -> #runtime::Result<()>> {
+                        use ::std::{collections::HashMap, hash::BuildHasherDefault};
+                        use #runtime::{Result, KotoHasher};
 
-                    thread_local! {
-                        static ENTRIES: HashMap<
+                        thread_local! {
+                            static ENTRIES: HashMap<
+                                &'static str,
+                                fn(&mut #ty, &KValue) -> Result<()>,
+                                BuildHasherDefault<KotoHasher>,
+                            > = #ty_turbofish::#create_access_map();
+                        }
+
+                        ENTRIES.with(|entries| entries.get(key).cloned())
+                    }
+                }
+            }
+            feature = "arc" => {
+                quote! {
+                    #[automatically_derived]
+                    fn #name(key: &str) -> Option<fn(&mut #ty, &KValue) -> #runtime::Result<()>> {
+                        use ::std::{collections::HashMap, hash::BuildHasherDefault, sync::LazyLock};
+                        use #runtime::{lazy, KotoHasher};
+
+                        static ENTRIES: LazyLock<HashMap<
                             &'static str,
                             fn(&mut #ty, &KValue) -> Result<()>,
                             BuildHasherDefault<KotoHasher>,
-                        > = #ty_turbofish::#create_access_map();
+                        >> = LazyLock::new(#ty_turbofish::#create_access_map);
+
+                        LazyLock::force(&ENTRIES).get(key).cloned()
                     }
-
-                    ENTRIES.with(|entries| entries.get(key).cloned())
                 }
             }
-        } else if cfg!(feature = "arc") {
-            quote! {
-                #[automatically_derived]
-                fn #name(key: &str) -> Option<fn(&mut #ty, &KValue) -> #runtime::Result<()>> {
-                    use ::std::{collections::HashMap, sync::LazyLock, hash::BuildHasherDefault};
-                    use #runtime::{lazy, KotoHasher};
-
-                    static ENTRIES: LazyLock<HashMap<
-                        &'static str,
-                        fn(&mut #ty, &KValue) -> Result<()>,
-                        BuildHasherDefault<KotoHasher>,
-                    >> = LazyLock::new(#ty_turbofish::#create_access_map);
-
-                    LazyLock::force(&ENTRIES).get(key).cloned()
-                }
+            _ => {
+                return missing_memory_feature()
             }
-        } else {
-            no_feature_set!()
         }
     } else {
         // Rust doesn't support generic statics, so entries are cached in a hashmap with the
         // concrete instantiation type used as the key.
 
-        if cfg!(feature = "rc") {
-            quote! {
-                #[automatically_derived]
-                fn #name(key: &str) -> Option<fn(&mut dyn ::std::any::Any, &#runtime::KValue)
-                    -> #runtime::Result<()>>
-                {
-                    use ::std::{
-                        any::TypeId, cell::RefCell, collections::HashMap, hash::BuildHasherDefault,
-                    };
-                    use #runtime::{KMap, KotoHasher, KValue, Result};
+        cfg_select! {
+            feature = "rc" => {
+                quote! {
+                    #[automatically_derived]
+                    fn #name(key: &str) -> Option<fn(&mut dyn ::std::any::Any, &#runtime::KValue)
+                        -> #runtime::Result<()>>
+                    {
+                        use ::std::{
+                            any::TypeId, cell::RefCell, collections::HashMap,
+                            hash::BuildHasherDefault,
+                        };
+                        use #runtime::{KMap, KotoHasher, KValue, Result};
 
-                    type PerTypeEntriesMap = HashMap<
-                        TypeId,
-                        HashMap<
-                            &'static str,
-                            fn(&mut dyn ::std::any::Any, &KValue) -> Result<()>,
+                        type PerTypeEntriesMap = HashMap<
+                            TypeId,
+                            HashMap<
+                                &'static str,
+                                fn(&mut dyn ::std::any::Any, &KValue) -> Result<()>,
+                                BuildHasherDefault<KotoHasher>,
+                            >,
                             BuildHasherDefault<KotoHasher>,
-                        >,
-                        BuildHasherDefault<KotoHasher>,
-                    >;
+                        >;
 
-                    thread_local! {
-                        static PER_TYPE_ENTRIES: RefCell<PerTypeEntriesMap> = RefCell::default();
+                        thread_local! {
+                            static PER_TYPE_ENTRIES: RefCell<PerTypeEntriesMap> = RefCell::default();
+                        }
+
+                        PER_TYPE_ENTRIES
+                            .with_borrow_mut(|per_type_entries| {
+                                per_type_entries
+                                    .entry(TypeId::of::<Self>())
+                                    .or_insert_with(#ty_turbofish::#create_access_map)
+                                    .get(key).cloned()
+                            })
                     }
-
-                    PER_TYPE_ENTRIES
-                        .with_borrow_mut(|per_type_entries| {
-                            per_type_entries
-                                .entry(TypeId::of::<Self>())
-                                .or_insert_with(#ty_turbofish::#create_access_map)
-                                .get(key).cloned()
-                        })
                 }
             }
-        } else if cfg!(feature = "arc") {
-            quote! {
-                #[automatically_derived]
-                fn #name(key: &str)
-                    -> Option<fn(&mut dyn ::std::any::Any, &KValue) -> #runtime::Result<()>>
-                {
-                    use ::std::{
-                        any::TypeId, collections::HashMap, hash::BuildHasherDefault, sync::LazyLock,
-                    };
-                    use #runtime::{KCell, KMap, KotoHasher, KNativeFunction, Result};
+            feature = "arc" => {
+                quote! {
+                    #[automatically_derived]
+                    fn #name(key: &str)
+                        -> Option<fn(&mut dyn ::std::any::Any, &KValue) -> #runtime::Result<()>>
+                    {
+                        use ::std::{
+                            any::TypeId, collections::HashMap, hash::BuildHasherDefault,
+                            sync::LazyLock,
+                        };
+                        use #runtime::{KCell, KMap, KotoHasher, KNativeFunction, Result};
 
-                    type PerTypeEntriesMap = HashMap<
-                        TypeId,
-                        HashMap<
-                            &'static str,
-                            fn(&mut dyn ::std::any::Any, &KValue) -> Result<()>,
+                        type PerTypeEntriesMap = HashMap<
+                            TypeId,
+                            HashMap<
+                                &'static str,
+                                fn(&mut dyn ::std::any::Any, &KValue) -> Result<()>,
+                                BuildHasherDefault<KotoHasher>,
+                            >,
                             BuildHasherDefault<KotoHasher>,
-                        >,
-                        BuildHasherDefault<KotoHasher>,
-                    >;
+                        >;
 
-                    static PER_TYPE_ENTRIES: LazyLock<KCell<PerTypeEntriesMap>> =
-                        LazyLock::new(KCell::default);
+                        static PER_TYPE_ENTRIES: LazyLock<KCell<PerTypeEntriesMap>> =
+                            LazyLock::new(KCell::default);
 
-                    PER_TYPE_ENTRIES
-                        .borrow_mut()
-                        .entry(TypeId::of::<Self>())
-                        .or_insert_with(#ty_turbofish::#create_access_map)
-                        .get(key).cloned()
+                        PER_TYPE_ENTRIES
+                            .borrow_mut()
+                            .entry(TypeId::of::<Self>())
+                            .or_insert_with(#ty_turbofish::#create_access_map)
+                            .get(key).cloned()
+                    }
                 }
             }
-        } else {
-            no_feature_set!()
+            _ => {
+                return missing_memory_feature()
+            }
         }
     };
 
@@ -1346,16 +1367,13 @@ fn parse2<T: Parse>(tokens: proc_macro2::TokenStream, what: &str) -> Result<T> {
     })
 }
 
-macro_rules! no_feature_set {
-    () => {
-        return Err(Error::new(
-            Span::call_site(),
-            r#"Either the \"rc\" or \"arc\" feature must be enabled!"#,
-        ))
-    };
+#[allow(dead_code)]
+fn missing_memory_feature<T>() -> Result<T> {
+    Err(Error::new(
+        Span::call_site(),
+        r#"Either the \"rc\" or \"arc\" feature must be enabled!"#,
+    ))
 }
-
-use no_feature_set;
 
 fn check_method_args(sig: &Signature, check: CheckMethodArgs) -> Result<()> {
     let CheckMethodArgs {

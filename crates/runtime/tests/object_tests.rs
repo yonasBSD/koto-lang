@@ -42,8 +42,8 @@ mod objects {
         #[koto_method]
         fn set_all_instances(ctx: MethodContext<Self>) -> Result<KValue> {
             match ctx.args {
-                [KValue::Object(b)] if b.is_a::<TestObject>() => {
-                    let b_x = b.cast::<TestObject>().unwrap().x;
+                [KValue::Object(b)] if let Ok(b) = b.cast::<TestObject>() => {
+                    let b_x = b.x;
                     ctx.instance_mut()?.x = b_x;
                     Ok(KValue::Null)
                 }
@@ -57,8 +57,7 @@ mod objects {
             {
                 use KValue::*;
                 match $other {
-                    Object(other) if other.is_a::<Self>() => {
-                        let other = other.cast::<Self>().unwrap();
+                    Object(other) if let Ok(other) = other.cast::<Self>() => {
                         Ok(Self::make_value($self.x $op other.x))
                     }
                     Number(n) => {
@@ -92,8 +91,7 @@ mod objects {
             {
                 use KValue::*;
                 match $other {
-                    Object(other) if other.is_a::<Self>() => {
-                        let other = other.cast::<Self>().unwrap();
+                    Object(other) if let Ok(other) = other.cast::<Self>() => {
                         $self.x $op other.x;
                         Ok(())
                     }
@@ -114,8 +112,7 @@ mod objects {
             {
                 use KValue::*;
                 match $other {
-                    Object(other) if other.is_a::<Self>() => {
-                        let other = other.cast::<Self>().unwrap();
+                    Object(other) if let Ok(other) = other.cast::<Self>() => {
                         #[allow(clippy::float_cmp)]
                         Ok($self.x $op other.x)
                     }
@@ -241,8 +238,7 @@ mod objects {
 
         fn power(&self, other: &KValue) -> Result<KValue> {
             match other {
-                KValue::Object(other) if other.is_a::<Self>() => {
-                    let other = other.cast::<Self>().unwrap();
+                KValue::Object(other) if let Ok(other) = other.cast::<Self>() => {
                     Ok(Self::make_value(self.x.pow(other.x as u32)))
                 }
                 KValue::Number(n) => Ok(Self::make_value(self.x.pow(u32::from(n)))),
@@ -284,8 +280,7 @@ mod objects {
         fn power_assign(&mut self, other: &KValue) -> Result<()> {
             use KValue::*;
             match other {
-                Object(other) if other.is_a::<Self>() => {
-                    let other = other.cast::<Self>().unwrap();
+                Object(other) if let Ok(other) = other.cast::<Self>() => {
                     self.x = self.x.pow(other.x as u32);
                     Ok(())
                 }

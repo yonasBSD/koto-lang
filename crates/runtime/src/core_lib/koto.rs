@@ -88,8 +88,7 @@ pub fn make_module() -> KMap {
             let chunk = try_load_koto_script(ctx, s)?;
             ctx.vm.run(chunk.inner())
         }
-        [KValue::Object(o)] if o.is_a::<Chunk>() => {
-            let chunk = o.cast::<Chunk>().unwrap().inner();
+        [KValue::Object(o)] if let Ok(chunk) = o.cast::<Chunk>().map(|chunk| chunk.inner()) => {
             ctx.vm.run(chunk)
         }
         unexpected => unexpected_args("|String|, or |Chunk|", unexpected),
