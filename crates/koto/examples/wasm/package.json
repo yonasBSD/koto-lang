@@ -8,14 +8,14 @@
   },
   "dependencies": {
     "brace": "^0.11.1",
-    "webpack-dev-server": "^4.11.1"
+    "webpack-dev-server": "^5.2.3"
   },
   "devDependencies": {
-    "@wasm-tool/wasm-pack-plugin": "^1.6.0",
-    "css-loader": "^6.7.3",
-    "html-webpack-plugin": "^5.5.0",
-    "style-loader": "^3.3.1",
-    "webpack": "^5.75.0",
-    "webpack-cli": "^5.0.1"
+    "@wasm-tool/wasm-pack-plugin": "^1.7.0",
+    "css-loader": "^7.1.4",
+    "html-webpack-plugin": "^5.6.7",
+    "style-loader": "^4.0.0",
+    "webpack": "^5.106.2",
+    "webpack-cli": "^7.0.2"
   }
 }
