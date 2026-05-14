@@ -25,6 +25,9 @@ doc *args:
 fmt:
   cargo fmt --all -- --check
 
+install:
+  cargo install --path crates/cli
+
 setup:
   cargo install cargo-watch mlc wasm-pack
 
